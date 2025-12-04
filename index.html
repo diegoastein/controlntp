@@ -120,13 +120,23 @@
             return `${day}/${month}/${year}`;
         };
 
+        // Función auxiliar para obtener la fecha local correcta (YYYY-MM-DD)
+        const getLocalToday = () => {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
         // --- COMPONENTE PRINCIPAL APP ---
         function App() {
             const [activeTab, setActiveTab] = useState('stock'); 
             const [orders, setOrders] = useState([]);
             const [movements, setMovements] = useState([]);
             const [notification, setNotification] = useState(null);
-            const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+            // CORREGIDO: Usar fecha local
+            const [formDate, setFormDate] = useState(getLocalToday());
             const [editingId, setEditingId] = useState(null);
             
             const [orderForm, setOrderForm] = useState({ number: '', provider: '', startDate: '', endDate: '', qtySmall: '', qtyLarge: '', qtyIndo: '' });
@@ -187,11 +197,13 @@
                 return orders.find(o => dateString >= o.startDate && dateString <= o.endDate);
             };
 
-            // Cálculo de Stock (Solo Orden Vigente)
+            // Cálculo de Stock (Solo Orden Vigente - Corregido Local Time)
             const stockData = useMemo(() => {
                 let acquired = { small: 0, large: 0, indo: 0 };
                 let consumed = { small: 0, large: 0, indo: 0 };
-                const today = new Date().toISOString().split('T')[0];
+                
+                // CORREGIDO: Usar fecha local para evitar errores de zona horaria
+                const today = getLocalToday();
                 const activeOrder = getOrderForDate(today);
 
                 if (activeOrder) {
@@ -235,7 +247,6 @@
                 setOrderForm({ number: '', provider: '', startDate: '', endDate: '', qtySmall: '', qtyLarge: '', qtyIndo: '' });
             };
 
-            // --- OPCION B: ACTUALIZADA ---
             const handleOrderSubmit = async (e) => {
                 e.preventDefault();
                 if (!user) { showNotification("Sin conexión a BD", "warning"); return; }
@@ -256,12 +267,11 @@
 
                 try {
                     // 2. Calculamos el día anterior al inicio de la NUEVA orden
-                    // Usamos una fecha base a medio día para evitar problemas de Timezone
                     const prevDateObj = new Date(orderForm.startDate + "T12:00:00");
                     prevDateObj.setDate(prevDateObj.getDate() - 1);
                     const prevDateStr = prevDateObj.toISOString().split('T')[0];
 
-                    // 3. Cerramos la vigencia de las órdenes anteriores (Opción B)
+                    // 3. Cerramos la vigencia de las órdenes anteriores
                     const updates = overlappingOrders.map(oldOrder => {
                         return updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', oldOrder.id), {
                             endDate: prevDateStr 
@@ -312,7 +322,8 @@
                         type: formData.get('type'), notes: formData.get('notes'), createdAt: new Date().toISOString()
                     });
                     e.target.reset();
-                    setFormDate(new Date().toISOString().split('T')[0]);
+                    // Resetear a fecha de hoy correcta
+                    setFormDate(getLocalToday());
                     showNotification('Consumo registrado');
                 } catch (e) { showNotification('Error al guardar', 'error'); }
             };
@@ -376,11 +387,11 @@
                             <div className="space-y-6 animate-in fade-in duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Activity className="text-blue-600" /> Estado del Stock</h2>
-                                    {getOrderForDate(new Date().toISOString().split('T')[0]) ? (
+                                    {getOrderForDate(getLocalToday()) ? (
                                         <p className="text-slate-600 font-medium ml-8 mt-1 text-sm bg-blue-50 inline-block px-2 py-1 rounded border border-blue-100">
-                                            OC Vigente: <strong>{getOrderForDate(new Date().toISOString().split('T')[0]).number}</strong>
+                                            OC Vigente: <strong>{getOrderForDate(getLocalToday()).number}</strong>
                                         </p>
-                                    ) : <p className="text-amber-600 ml-8 text-sm">Sin OC vigente hoy</p>}
+                                    ) : <p className="text-amber-600 ml-8 text-sm">Sin OC vigente hoy ({formatDate(getLocalToday())})</p>}
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <Card className="p-6 border-l-4 border-l-emerald-500">
